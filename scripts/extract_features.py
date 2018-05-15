@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 
 regex_title = re.compile(r'<title>(.+?)</title>')
-regex_ns = re.compile(r'<ns>(.+?)</ns>')
 regex_id = re.compile(r'<id>(.+?)</id>')
 regex_redirect = re.compile(r'<redirect title="(.+?)" />')
 regex_heading = re.compile(r'^==(.+?)==$')
@@ -89,6 +88,7 @@ def main(args):
     title2categories = defaultdict(list)
     title2first_sentence = defaultdict(str)
     title2embedding = defaultdict(list)
+    redirects = dict()
 
     print('processing the dump file')
     # n_lines = sum(1 for _ in bz2.open(args.article, 'rt'))
@@ -101,13 +101,8 @@ def main(args):
 
             match_title = regex_title.search(line)
             if match_title:
-                title = match_title.group(1).replace(' ' , '_')
-
-            match_ns = regex_ns.search(line)
-            if match_ns:
-                namespace = match_ns.group(1)
-                if namespace == str(0):
-                    titles.add(title)
+                title = match_title.group(1).replace(' ', '_')
+                titles.add(title)
 
             match_id = regex_id.search(line)
             if match_id:
@@ -116,7 +111,10 @@ def main(args):
 
             match_redirect = regex_redirect.search(line)
             if match_redirect:
-                titles.discard(title)
+                src = title
+                dst = match_redirect.group(1).replace(' ', '_')
+                redirects[src] = dst
+                titles.discard(src)
 
             match_heading = regex_title.search(line)
             if match_heading and namespace == str(0):
@@ -124,12 +122,11 @@ def main(args):
                 title2headings[title].append(heading)
 
             for match_category in regex_category.finditer(line):
-                if namespace == str(0) or namespace == str(14):
-                    cat_token = match_category.group(1)
-                    cat_name = match_category.group(2)
-                    if '|' in cat_name:
-                        cat_name = cat_name[:cat_name.find('|')]
-                    title2categories[title].append(f'{cat_token}:{cat_name}')
+                cat_token = match_category.group(1)
+                cat_name = match_category.group(2).replace(' ', '_')
+                if '|' in cat_name:
+                    cat_name = cat_name[:cat_name.find('|')]
+                title2categories[title].append(f'{cat_token}:{cat_name}')
 
     print('processing the extract file')
     n_articles = sum(1 for _ in tqdm(open(args.extract), unit='lines'))
@@ -172,11 +169,7 @@ def main(args):
         features += [f'TP2_{pos_bigram}' for pos_bigram
                      in analyzer.extract_ngrams(title, n=2, unit='pos')]
 
-        # character bigrams in the title
-        features += [f'TC2_{pos_bigram}' for pos_bigram
-                     in analyzer.extract_ngrams(title, n=2, unit='char')]
-
-        # rightmost noun in the title
+        # last noun in the title
         nouns = analyzer.extract_nouns(title)
         if nouns:
             features += [f'TLN_{nouns[-1]}']
@@ -189,7 +182,7 @@ def main(args):
         # type of the last character of the title
         features += [f'TTL1_{analyzer.char_type(title[-1])}']
 
-        # rightmost noun in the first sentence
+        # last noun in the first sentence
         first_sentence = title2first_sentence[title]
         nouns_in_first_sentence = analyzer.extract_nouns(first_sentence)
         if nouns_in_first_sentence:
@@ -204,14 +197,24 @@ def main(args):
         else:
             features += ['H_']
 
-        # direct categories
+        # last nouns in direct categories
         categories = title2categories[title]
-        features += [f'DC_{category}' for category in categories]
+        last_nouns_in_categories = set()
+        for cat in categories:
+            nouns_in_cat = analyzer.extract_nouns(cat)
+            last_nouns_in_categories.update(nouns_in_cat[-1:])
 
-        # upper categories
-        for category in categories:
-            upper_categories = title2categories[category]
-            features += [f'UC_{category}' for category in upper_categories]
+        features += [f'DCLN_{noun}' for noun in last_nouns_in_categories]
+
+        # last nouns in upper categories
+        last_nouns_in_upper_categories = set()
+        for cat in categories:
+            upper_categories = title2categories[cat]
+            for ucat in upper_categories:
+                nouns_in_cat = analyzer.extract_nouns(ucat)
+                last_nouns_in_upper_categories.update(nouns_in_cat[-1:])
+
+        features += [f'UCLN_{noun}' for noun in last_nouns_in_upper_categories]
 
         features = list(set(features))
         title2features[title] = features
@@ -222,14 +225,17 @@ def main(args):
     feature2id = {feature: i for i, feature in enumerate(id2feature)}
 
     print('writing out extracted features')
-    articles = dict()
-    for title in tqdm(titles, ncols=60):
-        articles[title] = {
-            'feature_ids': [feature2id[f] for f in features],
-            'embedding': title2embedding[title]
-        }
-    json.dump({'articles': articles, 'feature2id': feature2id},
-              open(args.out, 'w'), ensure_ascii=False)
+    with open(args.out, 'w') as fo:
+        for title in tqdm(titles, ncols=60):
+            item = {
+                'title': title,
+                'feature_ids': [feature2id[f] for f in title2features[title]],
+                'embedding': title2embedding[title]
+            }
+            print(json.dumps(item, ensure_ascii=False), file=fo)
+
+    json.dump(feature2id, open(args.feature2id, 'w'), ensure_ascii=False)
+    json.dump(redirects, open(args.redirects, 'w'), ensure_ascii=False)
 
 
 if __name__ == '__main__':
@@ -238,6 +244,8 @@ if __name__ == '__main__':
     parser.add_argument('--extract', type=str, required=True)
     parser.add_argument('--entvec', type=str, required=True)
     parser.add_argument('--out', type=str, required=True)
+    parser.add_argument('--feature2id', type=str, required=True)
+    parser.add_argument('--redirects', type=str, required=True)
 
     args = parser.parse_args()
     main(args)
