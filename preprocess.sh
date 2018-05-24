@@ -3,7 +3,6 @@
 DIR_DATA=./data
 DIR_WORK=./work
 FILE_ARTICLE=articles.xml.bz2
-FILE_META=metadata.xml.bz2
 FILE_EXTRACT=extract.json
 FILE_EXTRACT_WITH_HYPERLINKS=extract_with_hyperlinks.json
 FILE_UDIC_CSV=udic.csv
