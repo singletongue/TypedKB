@@ -15,7 +15,7 @@ FILE_FEATURE2ID=feature2id.json
 FILE_REDIRECTS=redirects.json
 
 VECTOR_SIZE=200
-N_PROCESS=20
+N_PROCESS=2
 
 mkdir -p $DIR_WORK
 
