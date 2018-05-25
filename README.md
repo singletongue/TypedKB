@@ -1,40 +1,25 @@
 ## About
 
-- 2018年1月に関根先生より依頼があった、2017年11月の Wikipedia 記事に対する固有表現クラスの再タグ付け
+An implementation of fine-grained named entity classifier proposed in the following paper.
+
+- Masatoshi Suzuki, Koji Matsuda, Satoshi Sekine, Naoaki Okazaki and Kentaro Inui. *A Joint Neural Model for Fine-Grained Named Entity Classification of Wikipedia Articles.* IEICE Transactions on Information and Systems, Special Section on Semantic Web and Linked Data, Vol. E101-D, No.1, pp.73-81, 2018. [Link](https://www.jstage.jst.go.jp/article/transinf/E101.D/1/E101.D_2017SWP0005/_article/-char/ja/)
 
 ## Usage
 
-### 本文抽出
+### Download Wikipedia dump file
 
 ```sh
-$ ~/Repos/wikiextractor/WikiExtractor.py --processes 5 --output - --json --no-templates --quiet data/20151123/jawiki-20151123-pages-articles.xml.bz2 > data/20151123/body.json
-$ ~/Repos/wikiextractor/WikiExtractor.py --processes 16 --output - --json --no-templates --quiet data/20171103/jawiki-20171103-pages-articles.xml.bz2 > data/20171103/body.json
+$ chmod +x download.sh; ./download.sh
 ```
 
-### ベクトル
+### Preprocess downloaded files (including feature extraction)
 
 ```sh
-$ cp ~/typed_kb/wiki_dumps/ja/20151123/entity_vector.txt data/20151123/
-$ cat data/20151123/entity_vector.txt|sed -e 's/^<</\[/g'|sed -e 's/>>\s/\] /g' > data/20151123/entity_vector_square_brackets.txt
+$ chmod +x preprocess.sh; ./preprocess.sh
 ```
 
-### 素性抽出
+### Train and test classifiers (cross validation)
 
 ```sh
-$ python scripts/preprocess.py --out data/20151123/features.json --id2feature data/20151123/id2feature.json --article data/20151123/jawiki-20151123-pages-articles.xml.bz2 --body data/20151123/body.json --embed data/20151123/entity_vector_square_brackets.txt --ene data/20151123/master20180113.tsv --embed_encoding ISO-8859-1 --n_feature 100000
-$ python scripts/preprocess.py --out data/20171103/features.json --id2feature data/20151123/id2feature.json --article data/20171103/jawiki-20171103-pages-articles.xml.bz2 --body data/20171103/body.json --embed data/20151123/entity_vector_square_brackets.txt --embed_encoding ISO-8859-1 --n_feature 100000
+$ chmod +x cross_validation.sh; ./cross_validation.sh
 ```
-
-### 訓練
-
-```sh
-$ python scripts/train.py --train data/20151123/features.json --model_dir work/ENEClassifier/f100k --id2ene data/20151123/id2ene.json --gpu 0 --epoch 20 --batch 100 --n_feature 100000
-```
-
-### モデルの適用
-
-```sh
-$ python scripts/tagging.py --target data/20171103/features.json --model work/ENEClassifier/f100k/model020.npz --id2ene data/20151123/id2ene.json --gpu 1 --batch 100 --n_feature 100000 > data/20171103/enes.json
-```
-
-
