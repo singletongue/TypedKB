@@ -1,5 +1,5 @@
-numpy==1.14.3
-chainer==4.0.0
-gensim==3.2.0
-mecab-python3==0.7
-tqdm==4.19.5
+numpy>=1.14.3
+chainer>=4.0.0
+gensim>=3.2.0
+mecab-python3>=0.7
+tqdm>=4.19.5
