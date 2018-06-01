@@ -200,8 +200,9 @@ def main(args):
     print(f'Class-based micro Recall:    {float(cb_micro_recall):.2%}')
     print(f'Class-based micro F1 score:  {float(cb_micro_f1):.2%}')
 
+    print(f'writing out classification results')
     with open(Path(args.out_dir) / 'classification_result.json', 'w') as fo:
-        for i, item in enumerate(dataset):
+        for i, item in tqdm(enumerate(dataset)):
             title = item['title']
             predicted_classes = [id2ene[j]
                 for j, v in enumerate(prediction_matrix[i]) if v == 1.0]
